@@ -42,6 +42,6 @@ echo =========================================
 echo CHKDSK será executado no disco C:
 echo Isso pode requerer reinicialização.
 echo =========================================
-echo y | chkdsk C: /F /R
+echo y | chkdsk /F /R
 pause
 goto MENU
