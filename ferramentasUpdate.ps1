@@ -46,7 +46,7 @@ function Executar-CHKDSK {
     Write-Host "💾 CHKDSK será executado no disco C:"
     Write-Host "Isso pode requerer reinicialização do sistema."
     Write-Host "====================================================="
-    "S" | cmd /c "chkdsk C: /F /R"
+    "S" | cmd /c "chkdsk /F /R"
     Pause
 }
 
