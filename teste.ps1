@@ -229,33 +229,50 @@ function Reiniciar-WU {
 
 function Agendar-Tarefa {
     Clear-Host
-    Write-Log "📅 AGENDAMENTO DE TAREFA DE LIMPEZA" -ForegroundColor Cyan
-    Write-Log "`nEsta opção irá agendar uma tarefa para executar a limpeza de arquivos temporários todos os dias às 04:00." -ForegroundColor White
-    
-    $nomeTarefa = "Limpeza_TEMP_Diaria_DouraGlass"
-    
-    try {
-        # Ação: Executa este mesmo script com o parâmetro -ScheduledClean
-        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy Bypass -File `"$PSCommandPath`" -ScheduledClean"
-        
-        # Gatilho: Diariamente às 4 da manhã
-        $trigger = New-ScheduledTaskTrigger -Daily -At 4am
-        
-        # Principal: Executa como a conta SYSTEM com privilégios máximos
-        $principal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -RunLevel Highest
-        
-        # Configurações adicionais
-        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-        
-        # Registra a tarefa
-        Register-ScheduledTask -TaskName $nomeTarefa -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop
-        
-        Write-Log "`n✔️ Tarefa '$nomeTarefa' agendada/atualizada com sucesso!" -ForegroundColor Green
-    } catch {
-        Write-Log "`n❌ Falha ao agendar a tarefa. Erro: $($_.Exception.Message)" -ForegroundColor Red
-    }
+    Write-Host "📅 MENU DE AGENDAMENTO DE TAREFAS" -ForegroundColor Cyan
+    Write-Host "`n[1] Agendar limpeza diária do TEMP às 04:00"
+    Write-Host "[0] Voltar ao menu principal"
+    $escolha = Read-Host "`nEscolha uma opção"
 
-    Read-Host "`nPressione ENTER para voltar ao menu"
+    switch ($escolha) {
+        "1" {
+            $pastaAgendada = "C:\Agendati"
+            if (-not (Test-Path $pastaAgendada)) {
+                New-Item -Path $pastaAgendada -ItemType Directory | Out-Null
+            }
+
+            $scriptLimpeza = @"
+`$pastas = @(
+    `"`$env:TEMP`",
+    `"`$env:windir\Temp`"
+)
+foreach (`$pasta in `$pastas) {
+    try {
+        Get-ChildItem -Path `$pasta -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+    } catch {}
+}
+"@
+
+            $scriptPath = "$pastaAgendada\limpeza.ps1"
+            Set-Content -Path $scriptPath -Value $scriptLimpeza -Encoding UTF8
+
+            $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$scriptPath`""
+            $trigger = New-ScheduledTaskTrigger -Daily -At 4:00AM
+            $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+            $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal
+
+            Register-ScheduledTask -TaskName "Limpeza_TEMP_Diaria" -InputObject $task -Force
+
+            Write-Host "`n✔️  Tarefa agendada com sucesso! Será executada todos os dias às 04:00." -ForegroundColor Green
+            Pause
+        }
+        "0" { return }
+        Default {
+            Write-Host "`n❌ Opção inválida. Tente novamente." -ForegroundColor Red
+            Start-Sleep -Seconds 2
+            Agendar-Tarefa
+        }
+    }
 }
 
 #endregion
