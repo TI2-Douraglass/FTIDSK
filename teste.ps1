@@ -102,7 +102,6 @@ function Executar-Limpeza {
     Clear-Host
     Write-Host "🧹 Limpando arquivos temporários..." -ForegroundColor Yellow
     
-    # Documentação: Lista de pastas a serem limpas.
     $pastas = @(
         $env:TEMP,
         "$env:windir\Temp"
@@ -112,10 +111,12 @@ function Executar-Limpeza {
         if (Test-Path -Path $pasta) {
             Write-Host "`n🗂️  Limpando pasta: $pasta" -ForegroundColor Cyan
             try {
-                # Documentação: Usamos -ErrorAction Stop para que qualquer erro seja capturado pelo bloco 'catch'.
                 Get-ChildItem -Path $pasta -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction Stop
                 Write-Host "✔️  Limpeza de $pasta concluída." -ForegroundColor Green
             } catch {
+                # --- CORREÇÃO APLICADA AQUI ---
+                # Documentação: Usamos $($_.Exception.Message) para inserir a mensagem de erro de forma segura na string.
+                # Acessar a propriedade .Exception.Message fornece uma mensagem mais limpa do que usar apenas $_.
                 Write-Host "⚠️  Não foi possível limpar todos os arquivos em $pasta. Alguns podem estar em uso, o que é normal." -ForegroundColor Yellow
                 Write-Host ("   Detalhe do erro: $($_.Exception.Message)") -ForegroundColor Gray
             }
