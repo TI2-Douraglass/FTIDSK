@@ -1,4 +1,12 @@
 # 🔧 Ferramenta de Manutenção do Sistema - DouraGlass
+
+# 🚨 Verificar e solicitar elevação se necessário
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "⏫ Reabrindo o script como administrador..." -ForegroundColor Yellow
+    Start-Process powershell "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
+
 $Host.UI.RawUI.WindowTitle = "🔧 Ferramenta de Manutenção do Sistema - DouraGlass"
 $Host.UI.RawUI.ForegroundColor = "Yellow"
 $Host.UI.RawUI.BackgroundColor = "DarkBlue"
