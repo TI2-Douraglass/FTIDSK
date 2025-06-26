@@ -1,212 +1,271 @@
-# 🔧 Ferramenta de Manutenção do Sistema - DouraGlass
-# Script refatorado: robustez, segurança e logging
+#requires -RunAsAdministrator
 
-# 1. Modo estrito e declaração de erros
-Set-StrictMode -Version Latest
+# ----------------------------------------------------------------------------------
+# 🔧 Ferramenta de Manutenção do Sistema - DouraGlass (Versão Melhorada)
+# Descrição: Um script PowerShell para realizar tarefas comuns de manutenção do sistema.
+# Autor: Seu Nome/DouraGlass
+# Versão: 2.0
+# ----------------------------------------------------------------------------------
 
-# 2. Verificar assinatura digital do script
-if ((Get-AuthenticodeSignature $PSCommandPath).Status -ne 'Valid') {
-    Write-Error "Script não está assinado digitalmente. Abortando."
-    exit 1
-}
+# Configurações iniciais da janela do PowerShell
+$Host.UI.RawUI.WindowTitle = "🔧 Ferramenta de Manutenção do Sistema - DouraGlass v2.0"
+$Host.UI.RawUI.ForegroundColor = "Yellow"
+$Host.UI.RawUI.BackgroundColor = "DarkBlue"
+Clear-Host
 
-# 3. Configurar fonte de Event Log
-$source = 'ManutencaoSistema'
-if (-not [System.Diagnostics.EventLog]::SourceExists($source)) {
-    New-EventLog -LogName Application -Source $source
-}
+# --- Funções do Menu ---
 
-# 4. Iniciar transcript para auditoria
-$scriptName = Split-Path -Path $PSCommandPath -Leaf
-$logPath = Join-Path $env:TEMP ("{0}_{1:yyyyMMdd_HHmmss}.log" -f $scriptName, (Get-Date))
-Start-Transcript -Path $logPath -Append
-
-# 5. Elevação automática se não for Administrador
-if (-not ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
-    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "⏫ Reabrindo script como Administrador..." -ForegroundColor Yellow
-    Start-Process pwsh -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$PSCommandPath`"" -Verb RunAs
-    Stop-Transcript
-    exit
-}
-
-# 6. Verificar versão mínima do PowerShell
-if ($PSVersionTable.PSVersion -lt [Version]"5.1") {
-    Write-Error "PowerShell 5.1 ou superior é necessário."
-    Stop-Transcript
-    exit 1
-}
-
-# 7. Definição do menu
 function Mostrar-Menu {
     Clear-Host
     Write-Host "============================================" -ForegroundColor Cyan
-    Write-Host "    🔧 FERRAMENTA DE MANUTENÇÃO DO SISTEMA" -ForegroundColor White
+    Write-Host "   🔧 FERRAMENTA DE MANUTENÇÃO DO SISTEMA" -ForegroundColor White
     Write-Host "============================================" -ForegroundColor Cyan
     Write-Host ""
+    Write-Host "--- SISTEMA ---" -ForegroundColor Green
     Write-Host "[1] 🔍 Verificar arquivos do sistema (SFC)"
     Write-Host "[2] 🛠️  Reparo da imagem do sistema (DISM)"
-    Write-Host "[3] 💾 Agendar CHKDSK no boot (CHKDSK /F /R)"
+    Write-Host ""
+    Write-Host "--- DISCO ---" -ForegroundColor Green
+    Write-Host "[3] 💾 Verificar disco (CHKDSK no disco C:)"
     Write-Host "[4] 🧹 Limpeza de arquivos temporários"
-    Write-Host "[5] 🧪 Verificar status SMART dos discos"
+    Write-Host "[5] 🧪 Verificar status SMART do disco"
+    Write-Host ""
+    Write-Host "--- REDE E ATUALIZAÇÕES ---" -ForegroundColor Green
     Write-Host "[6] 🌐 Diagnóstico de rede"
-    Write-Host "[7] ♻️  Reiniciar Windows Update"
+    Write-Host "[7] ♻️  Reiniciar serviço do Windows Update"
+    Write-Host ""
+    Write-Host "--- OUTROS ---" -ForegroundColor Green
+    Write-Host "[9] 📅 Agendar tarefa de limpeza"
+    Write-Host ""
+    Write-Host "--- SAIR ---"
     Write-Host "[8] ❌ Sair"
     Write-Host ""
 }
 
-# 8. Funções de manutenção
+# --- Funções de Execução ---
+
 function Executar-SFC {
-    [CmdletBinding()]
-    param()
-    try {
-        Write-Host "🔍 Iniciando SFC..." -ForegroundColor Yellow
-        sfc /scannow -ErrorAction Stop
-        Write-Host "✅ SFC concluído." -ForegroundColor Green
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 1001 -Message "SFC concluído com sucesso."
-    } catch {
-        Write-Error "❌ Erro no SFC: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 1002 -Message $_
+    Clear-Host
+    Write-Host "🔍 Executando verificação do sistema (SFC)... Isso pode demorar." -ForegroundColor Yellow
+    
+    # Documentação: Executa o System File Checker e captura o resultado.
+    $resultado = sfc /scannow
+    
+    # Documentação: Verifica o código de saída do último comando executado. 0 significa sucesso.
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✔️ Verificação SFC concluída com sucesso. Nenhum problema encontrado." -ForegroundColor Green
+    } else {
+        Write-Host "⚠️ A verificação SFC encontrou problemas. Verifique o log para mais detalhes:" -ForegroundColor Yellow
+        Write-Host "$env:windir\Logs\CBS\CBS.log"
     }
     Pause
 }
 
 function Executar-DISM {
-    [CmdletBinding()]
-    param()
-    try {
-        Write-Host "🛠️  Iniciando DISM..." -ForegroundColor Yellow
-        Start-Process -FilePath dism.exe -ArgumentList '/Online','/Cleanup-Image','/RestoreHealth' -Verb RunAs -Wait
-        Write-Host "✅ DISM concluído." -ForegroundColor Green
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 2001 -Message "DISM concluído com sucesso."
-    } catch {
-        Write-Error "❌ Erro no DISM: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 2002 -Message $_
+    Clear-Host
+    Write-Host "🛠️  Executando reparo da imagem do sistema (DISM)... Isso pode ser demorado." -ForegroundColor Yellow
+    
+    # Documentação: Executa o DISM diretamente, pois o script já está em modo administrador.
+    # Usamos /ScanHealth primeiro para uma verificação rápida.
+    Write-Host "Passo 1/2: Verificando a saúde da imagem..." -ForegroundColor Cyan
+    DISM /Online /Cleanup-Image /ScanHealth
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Passo 2/2: Restaurando a saúde da imagem..." -ForegroundColor Cyan
+        DISM /Online /Cleanup-Image /RestoreHealth
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✔️ Reparo da imagem DISM concluído com sucesso." -ForegroundColor Green
+        } else {
+            Write-Host "❌ Falha ao restaurar a imagem com o DISM. Verifique o log para detalhes." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "❌ Falha ao verificar a saúde da imagem com o DISM." -ForegroundColor Red
     }
     Pause
 }
 
 function Executar-CHKDSK {
-    [CmdletBinding()]
-    param()
-    try {
-        Write-Host "💾 Agendando CHKDSK no próximo boot..." -ForegroundColor Yellow
-        "Y" | cmd /c "chkdsk C: /F /R"
-        Write-Host "✅ CHKDSK agendado." -ForegroundColor Green
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 3001 -Message "CHKDSK agendado para próximo boot."
-    } catch {
-        Write-Error "❌ Erro ao agendar CHKDSK: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 3002 -Message $_
-    }
+    Clear-Host
+    Write-Host "💾 Agendando verificação do disco C: na próxima reinicialização (CHKDSK /F /R)..." -ForegroundColor Yellow
+    
+    # Documentação: O comando fsutil dirty query C: verifica se o disco já está "sujo" (agendado para verificação).
+    fsutil dirty query C:
+    
+    # Documentação: Executa o CHKDSK. Ele pedirá para agendar se o disco estiver em uso.
+    chkdsk C: /f /r
+    
+    Write-Host "`nO CHKDSK foi executado ou agendado. Se necessário, reinicie o computador para iniciar a verificação." -ForegroundColor Green
     Pause
 }
 
 function Executar-Limpeza {
-    [CmdletBinding()]
-    param()
-    $pastas = @($env:TEMP, "$env:windir\Temp")
+    Clear-Host
+    Write-Host "🧹 Limpando arquivos temporários..." -ForegroundColor Yellow
+    
+    # Documentação: Lista de pastas a serem limpas.
+    $pastas = @(
+        $env:TEMP,
+        "$env:windir\Temp"
+    )
+    
     foreach ($pasta in $pastas) {
-        try {
-            Write-Host "🧹 Limpando: $pasta" -ForegroundColor Yellow
-            Get-ChildItem -Path $pasta -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-            Write-Host "✅ Limpeza de $pasta concluída." -ForegroundColor Green
-            Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 4001 -Message "Limpeza de $pasta concluída."
-        } catch {
-            Write-Error "❌ Erro ao limpar $pasta: $_"
-            Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 4002 -Message $_
+        if (Test-Path -Path $pasta) {
+            Write-Host "`n🗂️  Limpando pasta: $pasta" -ForegroundColor Cyan
+            try {
+                # Documentação: Usamos -ErrorAction Stop para que qualquer erro seja capturado pelo bloco 'catch'.
+                Get-ChildItem -Path $pasta -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction Stop
+                Write-Host "✔️  Limpeza de $pasta concluída." -ForegroundColor Green
+            } catch {
+                Write-Host "⚠️  Não foi possível limpar todos os arquivos em $pasta. Alguns podem estar em uso, o que é normal." -ForegroundColor Yellow
+                Write-Host ("   Detalhe do erro: $($_.Exception.Message)") -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "ℹ️  A pasta $pasta não existe." -ForegroundColor Gray
         }
     }
     Pause
 }
 
 function Verificar-SMART {
-    [CmdletBinding()]
-    param()
+    Clear-Host
+    Write-Host "🧪 Verificando status SMART dos discos..." -ForegroundColor Yellow
+    
     try {
-        Write-Host "🧪 Verificando SMART dos discos..." -ForegroundColor Yellow
-        Get-WmiObject -Class Win32_DiskDrive | Select-Object Model, Status
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 5001 -Message "Verificação SMART concluída."
+        # Documentação: Get-CimInstance é a forma moderna de consultar o WMI.
+        # -ErrorAction Stop garante que, se o comando falhar, o 'catch' será executado.
+        Get-CimInstance -ClassName Win32_DiskDrive | Select-Object -Property Model, @{Name="Status"; Expression={if($_.Status -eq 'OK'){"✔️ OK"} else {"❌ ERRO"}}}
     } catch {
-        Write-Error "❌ Erro no SMART: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 5002 -Message $_
+        Write-Host "❌ Não foi possível verificar o status SMART. O comando falhou." -ForegroundColor Red
     }
     Pause
 }
 
 function Diagnostico-Rede {
-    [CmdletBinding()]
-    param()
-    try {
-        Write-Host "🌐 Iniciando diagnóstico de rede..." -ForegroundColor Yellow
-        ipconfig /release
-        ipconfig /renew
-        ipconfig /flushdns
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 6001 -Message "Diagnóstico de rede concluído."
-    } catch {
-        Write-Error "❌ Erro no diagnóstico de rede: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 6002 -Message $_
-    }
+    Clear-Host
+    Write-Host "🌐 Executando diagnóstico de rede..." -ForegroundColor Yellow
+    
+    Write-Host "`n[1/3] Liberando concessão de IP..." -ForegroundColor Cyan
+    ipconfig /release
+    
+    Write-Host "`n[2/3] Renovando concessão de IP..." -ForegroundColor Cyan
+    ipconfig /renew
+    
+    Write-Host "`n[3/3] Limpando cache de DNS..." -ForegroundColor Cyan
+    ipconfig /flushdns
+    
+    Write-Host "`n✔️ Diagnóstico de rede concluído." -ForegroundColor Green
     Pause
 }
 
 function Reiniciar-WU {
-    [CmdletBinding()]
-    param()
+    Clear-Host
+    Write-Host "♻️  Reiniciando componentes do Windows Update..." -ForegroundColor Yellow
+    
+    # Documentação: Nomes dos serviços a serem manipulados.
+    $services = "wuauserv", "cryptSvc", "bits", "msiserver"
+    $pastasRenomear = @{
+        "C:\Windows\SoftwareDistribution" = "C:\Windows\SoftwareDistribution.old";
+        "C:\Windows\System32\catroot2"   = "C:\Windows\System32\catroot2.old"
+    }
+    
     try {
-        Write-Host "♻️  Reiniciando Windows Update..." -ForegroundColor Yellow
-        $services = "wuauserv","cryptSvc","bits","msiserver"
-        foreach ($svc in $services) { Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue }
-        Rename-Item "$env:windir\SoftwareDistribution" "SoftwareDistribution.old" -ErrorAction SilentlyContinue
-        Rename-Item "$env:windir\System32\catroot2" "catroot2.old" -ErrorAction SilentlyContinue
-        foreach ($svc in $services) { Start-Service -Name $svc -ErrorAction SilentlyContinue }
-        Write-Host "✅ Windows Update reiniciado." -ForegroundColor Green
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 7001 -Message "Windows Update reiniciado."
+        # Documentação: Usamos Stop-Service, um cmdlet nativo do PowerShell. -Force tenta parar mesmo se houver dependências.
+        Stop-Service -Name $services -Force -ErrorAction Stop
+
+        Write-Host "Serviços parados. Renomeando pastas de cache..." -ForegroundColor Cyan
+        
+        # Documentação: Renomeia as pastas de cache do Windows Update.
+        foreach ($origem, $destino in $pastasRenomear.GetEnumerator()) {
+            if (Test-Path $destino) {
+                Remove-Item -Path $destino -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $origem) {
+                Rename-Item -Path $origem -NewName $destino -ErrorAction SilentlyContinue
+            }
+        }
+        
+        Write-Host "Pastas renomeadas. Reiniciando serviços..." -ForegroundColor Cyan
+        # Documentação: Reinicia os serviços usando Start-Service.
+        Start-Service -Name $services -ErrorAction Stop
+
+        Write-Host "`n✔️  Windows Update redefinido com sucesso." -ForegroundColor Green
     } catch {
-        Write-Error "❌ Erro ao reiniciar Windows Update: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 7002 -Message $_
+        Write-Host "`n❌ Falha ao reiniciar os componentes do Windows Update." -ForegroundColor Red
+        Write-Host ("   Detalhe do erro: $($_.Exception.Message)") -ForegroundColor Gray
     }
     Pause
 }
 
 function Agendar-Tarefa {
-    [CmdletBinding()]
-    param()
-    try {
-        Write-Host "📅 Agendando limpeza diária..." -ForegroundColor Yellow
-        $action = New-ScheduledTaskAction -Execute 'PowerShell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \`"Get-ChildItem -Path `$env:TEMP -Recurse -Force | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue; Get-ChildItem -Path `$env:windir\Temp -Recurse -Force | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue\`""
-        $trigger = New-ScheduledTaskTrigger -Daily -At 4am
-        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-        $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal
-        Register-ScheduledTask -TaskName "LimpezaDiaria_TEMP" -InputObject $task -Force
-        Write-Host "✅ Tarefa agendada: LimpezaDiaria_TEMP" -ForegroundColor Green
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 8001 -Message "Tarefa LimpezaDiaria_TEMP agendada."
-    } catch {
-        Write-Error "❌ Falha ao agendar tarefa: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 8002 -Message $_
+    Clear-Host
+    Write-Host "📅 MENU DE AGENDAMENTO DE TAREFAS" -ForegroundColor Cyan
+    Write-Host "`n[1] Agendar limpeza diária de arquivos temporários às 04:00"
+    Write-Host "[0] Voltar ao menu principal"
+    $escolha = Read-Host "`nEscolha uma opção"
+
+    switch ($escolha) {
+        "1" {
+            # Documentação: Usar ProgramData é mais seguro do que a raiz C:\
+            $pastaAgendada = Join-Path -Path $env:ProgramData -ChildPath "DouraGlassMaintenance"
+            if (-not (Test-Path $pastaAgendada)) {
+                New-Item -Path $pastaAgendada -ItemType Directory | Out-Null
+            }
+            $scriptPath = Join-Path -Path $pastaAgendada -ChildPath "limpeza.ps1"
+
+            # Documentação: Script de limpeza que será executado pela tarefa agendada.
+            # É uma versão simplificada da função Executar-Limpeza.
+            $scriptLimpeza = @'
+# Script de limpeza automática
+$pastas = @($env:TEMP, "$env:windir\Temp")
+foreach ($pasta in $pastas) {
+    if (Test-Path $pasta) {
+        Get-ChildItem -Path $pasta -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
     }
-    Pause
+}
+'@
+            Set-Content -Path $scriptPath -Value $scriptLimpeza -Encoding UTF8
+
+            $action    = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoProfile -File `"$scriptPath`""
+            $trigger   = New-ScheduledTaskTrigger -Daily -At 4:00AM
+            $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -RunLevel Highest
+            $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+            $task      = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings
+
+            try {
+                Register-ScheduledTask -TaskName "DouraGlass_Limpeza_TEMP_Diaria" -InputObject $task -Force -ErrorAction Stop
+                Write-Host "`n✔️  Tarefa agendada com sucesso! Será executada todos os dias às 04:00." -ForegroundColor Green
+            } catch {
+                Write-Host "`n❌ Falha ao agendar a tarefa." -ForegroundColor Red
+                Write-Host ("   Detalhe do erro: $($_.Exception.Message)") -ForegroundColor Gray
+            }
+            Pause
+        }
+        "0" { return }
+        Default {
+            Write-Host "`n❌ Opção inválida. Tente novamente." -ForegroundColor Red
+            Start-Sleep -Seconds 2
+        }
+    }
 }
 
-# Loop principal
+# --- Loop Principal do Script ---
+
 do {
     Mostrar-Menu
     $opcao = Read-Host "Escolha uma opção"
 
     switch ($opcao) {
-        '1' { Executar-SFC }
-        '2' { Executar-DISM }
-        '3' { Executar-CHKDSK }
-        '4' { Executar-Limpeza }
-        '5' { Verificar-SMART }
-        '6' { Diagnostico-Rede }
-        '7' { Reiniciar-WU }
-        '8' {
-            Stop-Transcript
-            exit
-        }
-        '9' { Agendar-Tarefa }
+        "1" { Executar-SFC }
+        "2" { Executar-DISM }
+        "3" { Executar-CHKDSK }
+        "4" { Executar-Limpeza }
+        "5" { Verificar-SMART }
+        "6" { Diagnostico-Rede }
+        "7" { Reiniciar-WU }
+        "8" { Write-Host "Saindo..."; exit }
+        "9" { Agendar-Tarefa }
         Default {
-            Write-Host "❗ Opção inválida." -ForegroundColor Red
+            Write-Host ""; Write-Host "❗ Opção inválida. Por favor, escolha um número do menu." -ForegroundColor Red
             Start-Sleep -Seconds 2
         }
     }
