@@ -67,7 +67,7 @@ function Executar-Limpeza {
             Get-ChildItem -Path $pasta -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
             Write-Host "✔️  Limpeza de $pasta concluída." -ForegroundColor Green
         } catch {
-            Write-Host "❌ Falha ao limpar $pasta: $_" -ForegroundColor Red
+            Write-Host ("❌ Falha ao limpar {0}: {1}" -f $pasta, $_) -ForegroundColor Red
         }
     }
     Pause
