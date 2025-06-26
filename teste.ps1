@@ -162,7 +162,7 @@ function Reiniciar-WU {
     Clear-Host
     Write-Host "♻️  Reiniciando componentes do Windows Update..." -ForegroundColor Yellow
     
-    # Documentação: Nomes dos serviços a serem manipulados.
+    # Documentação: Nomes dos serviços e pastas a serem manipulados.
     $services = "wuauserv", "cryptSvc", "bits", "msiserver"
     $pastasRenomear = @{
         "C:\Windows\SoftwareDistribution" = "C:\Windows\SoftwareDistribution.old";
@@ -170,13 +170,18 @@ function Reiniciar-WU {
     }
     
     try {
-        # Documentação: Usamos Stop-Service, um cmdlet nativo do PowerShell. -Force tenta parar mesmo se houver dependências.
         Stop-Service -Name $services -Force -ErrorAction Stop
 
         Write-Host "Serviços parados. Renomeando pastas de cache..." -ForegroundColor Cyan
         
-        # Documentação: Renomeia as pastas de cache do Windows Update.
-        foreach ($origem, $destino in $pastasRenomear.GetEnumerator()) {
+        # --- CORREÇÃO APLICADA AQUI ---
+        # Documentação: Iteramos sobre cada par chave/valor do hashtable.
+        # A variável $entrada irá conter cada item (com .Key e .Value) em cada iteração.
+        foreach ($entrada in $pastasRenomear.GetEnumerator()) {
+            $origem = $entrada.Key
+            $destino = $entrada.Value
+
+            # A lógica para renomear as pastas
             if (Test-Path $destino) {
                 Remove-Item -Path $destino -Recurse -Force -ErrorAction SilentlyContinue
             }
@@ -186,7 +191,6 @@ function Reiniciar-WU {
         }
         
         Write-Host "Pastas renomeadas. Reiniciando serviços..." -ForegroundColor Cyan
-        # Documentação: Reinicia os serviços usando Start-Service.
         Start-Service -Name $services -ErrorAction Stop
 
         Write-Host "`n✔️  Windows Update redefinido com sucesso." -ForegroundColor Green
