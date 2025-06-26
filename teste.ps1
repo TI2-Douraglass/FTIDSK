@@ -2,7 +2,7 @@
 # ----------------------------------------------------------------------------------
 # Script: Ferramenta de Manutenção do Sistema - DouraGlass (Versão Robusta)
 # Autor: Seu Nome (com melhorias do Ajudante de Programação)
-# Versão: 2.0
+# Versão: 2.1
 # Descrição: Um script PowerShell para realizar tarefas comuns de manutenção
 #            do sistema de forma segura e com logging.
 # ----------------------------------------------------------------------------------
@@ -12,21 +12,33 @@ param (
     [switch]$AcaoLimpezaAgendada
 )
 
-# Define o caminho do ficheiro de log no mesmo diretório do script
-$ScriptPath = $PSScriptRoot
-$LogFile = Join-Path -Path $ScriptPath -ChildPath "manutencao_log.txt"
+# Define o caminho do ficheiro de log de forma robusta
+if ($PSScriptRoot) {
+    # Se o script for executado a partir de um ficheiro, guarda o log na mesma pasta
+    $LogPath = $PSScriptRoot
+} else {
+    # Se executado interativamente (ex: ISE ou colado na consola), usa a pasta TEMP como fallback
+    $LogPath = $env:TEMP
+    Write-Host "AVISO: Script a ser executado em modo interativo. O ficheiro de log será guardado em: $LogPath" -ForegroundColor Yellow
+}
+$LogFile = Join-Path -Path $LogPath -ChildPath "manutencao_log.txt"
+
 
 # Função para escrever mensagens no console e no ficheiro de log
 function Write-Log {
     param(
         [string]$Message,
-        [string]$Level = "INFO" # Níveis podem ser INFO, WARN, ERROR
+        [string]$Level = "INFO" # Níveis podem ser INFO, WARN, ERROR, GREEN
     )
     $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $LogMessage = "[$Timestamp] [$Level] - $Message"
     
     # Adiciona a mensagem ao ficheiro de log
-    Add-Content -Path $LogFile -Value $LogMessage
+    try {
+        Add-Content -Path $LogFile -Value $LogMessage -ErrorAction Stop
+    } catch {
+        Write-Host "ERRO CRÍTICO: Não foi possível escrever no ficheiro de log em $LogFile. Erro: $_" -ForegroundColor Red
+    }
     
     # Exibe a mensagem no console com cores apropriadas
     $Color = switch ($Level) {
@@ -55,7 +67,7 @@ if ($AcaoLimpezaAgendada.IsPresent) {
 }
 
 # Configuração da Janela
-$Host.UI.RawUI.WindowTitle = "🔧 Ferramenta de Manutenção do Sistema - DouraGlass v2.0"
+$Host.UI.RawUI.WindowTitle = "🔧 Ferramenta de Manutenção do Sistema - DouraGlass v2.1"
 $Host.UI.RawUI.ForegroundColor = "Yellow"
 $Host.UI.RawUI.BackgroundColor = "DarkBlue"
 Clear-Host
@@ -64,7 +76,7 @@ Write-Log -Message "Ferramenta iniciada. Log sendo gravado em: $LogFile" -Level 
 
 #endregion
 
-#region FUNÇÕES DE MENU E AÇÕES
+#region FUNÇÕES DE MENU E AÇÕES (As funções permanecem as mesmas da versão anterior)
 
 function Mostrar-Menu {
     Clear-Host
@@ -247,6 +259,13 @@ function Agendar-Tarefa {
     Write-Log -Message "Agendamento de tarefa de limpeza diária."
     
     $taskName = "Limpeza_TEMP_Diaria_DouraGlass"
+    # Esta verificação é crucial para o agendamento de tarefas.
+    # $PSCommandPath só funciona quando executado de um ficheiro.
+    if (-not $PSCommandPath) {
+        Write-Log -Message "ERRO: Para agendar uma tarefa, este script DEVE ser salvo como um ficheiro .ps1 e executado a partir dele." -Level "ERROR"
+        Read-Host "Pressione ENTER para continuar..."
+        return
+    }
     $scriptParaExecutar = $PSCommandPath # O caminho completo deste script
 
     try {
@@ -289,7 +308,7 @@ do {
         "5" { Verificar-SMART }
         "6" { Diagnostico-Rede }
         "7" { Reiniciar-WU }
-        "8" { Write-Log -Message "Saindo da ferramenta."; exit }
+        "8" { Write-Log -Message "Saindo da ferramenta."; break } # Usar 'break' é uma prática mais limpa para sair de loops
         "9" { Agendar-Tarefa }
         Default {
             Write-Host ""; Write-Host "❗ Opção inválida. Tente novamente." -ForegroundColor Red
