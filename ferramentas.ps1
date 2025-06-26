@@ -170,27 +170,39 @@ function Reiniciar-WU {
     Pause
 }
 
-function Limpar-FilaImpressao {
+function Resetar-Spooler {
     [CmdletBinding()]
-    param()
+    param(
+        [string] $PrinterName  # opcional, se quiser focar em só uma impressora
+    )
     try {
-        Write-Host "🖨️  Parando Print Spooler..." -ForegroundColor Yellow
-        Stop-Service -Name Spooler -Force -ErrorAction Stop
+        Write-Host "🖨️  Parando serviço de impressão..." -ForegroundColor Yellow
+        Stop-Service Spooler -Force
 
-        Write-Host "🗑️  Apagando arquivos da fila de impressão..." -ForegroundColor Yellow
-        Remove-Item -Path "$env:WINDIR\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction Stop
+        Write-Host "🔪 Matando processos remanescentes..." -ForegroundColor Yellow
+        Get-Process spoolsv -ErrorAction SilentlyContinue | Stop-Process -Force
 
-        Write-Host "▶️  Reiniciando Print Spooler..." -ForegroundColor Yellow
-        Start-Service -Name Spooler -ErrorAction Stop
+        Write-Host "🗑️  Limpando arquivos de spool..." -ForegroundColor Yellow
+        Remove-Item -Path "$env:WINDIR\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
 
-        Write-Host "✅ Fila de impressão limpa com sucesso." -ForegroundColor Green
-        Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 9001 -Message "Fila de impressão limpa com sucesso."
+        if ($PrinterName) {
+            Write-Host "❌ Removendo driver da impressora $PrinterName..." -ForegroundColor Yellow
+            # Remove-Printer só existe no Windows 8+/Server 2012+
+            Remove-Printer -Name $PrinterName -ErrorAction SilentlyContinue
+            # (re)instalar driver pode ser feito aqui se você tiver o INF disponível:
+            # Add-Printer -Name $PrinterName -DriverName "NomeDoDriver" -PortName "PORTA"
+        }
+
+        Write-Host "▶️  Reiniciando serviço de impressão..." -ForegroundColor Yellow
+        Start-Service Spooler
+
+        Write-Host "✅ Spooler resetado." -ForegroundColor Green
     } catch {
-        Write-Error "❌ Falha ao limpar fila de impressão: $_"
-        Write-EventLog -LogName Application -Source $source -EntryType Error -EventId 9002 -Message $_
+        Write-Error "❌ Falha ao resetar spooler: $_"
     }
     Pause
 }
+
 
 function Agendar-Tarefa {
     [CmdletBinding()]
