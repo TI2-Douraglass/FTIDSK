@@ -170,7 +170,7 @@ function Reiniciar-WU {
     Pause
 }
 
-function Resetar-Spooler {
+function Limpar-FilaImpressao {
     [CmdletBinding()]
     param(
         [string] $PrinterName  # opcional, se quiser focar em só uma impressora
