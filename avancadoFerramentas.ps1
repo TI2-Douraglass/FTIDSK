@@ -73,10 +73,10 @@ function Mostrar-Menu {
     Write-Host "[7] ♻️  Reiniciar componentes do Windows Update"
     Write-Host
     Write-Host "--- OUTROS ---" -ForegroundColor Green
-    Write-Host "[9] 📅 Agendar tarefa de limpeza diária"
+    Write-Host "[8] 📅 Agendar tarefa de limpeza diária"
     Write-Host
     Write-Host "--- SAIR ---"
-    Write-Host "[8] ❌ Sair"
+    Write-Host "[0] ❌ Sair"
     Write-Host
 }
 
@@ -375,6 +375,7 @@ do {
     $opcao = Read-Host "Escolha uma opção"
 
     switch ($opcao) {
+        "0" { exit }
         "1" { Executar-SFC }
         "2" { Executar-DISM }
         "3" { Executar-CHKDSK }
@@ -382,8 +383,7 @@ do {
         "5" { Verificar-SMART }
         "6" { Diagnostico-Rede }
         "7" { Reiniciar-WU }
-        "8" { exit }
-        "9" { Agendar-Tarefa }
+        "8" { Agendar-Tarefa }
         default {
             Write-Log "`n❗ Opção inválida. Por favor, tente novamente." -ForegroundColor Red
             Start-Sleep -Seconds 2
