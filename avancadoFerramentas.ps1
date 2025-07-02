@@ -358,6 +358,34 @@ foreach (`$pasta in `$pastas) {
     }
 }
 
+function Limpar-FilaImpressao{
+    param(
+        [String] $PrinterName 
+    )
+    try{
+        Write-Host "🖨️  Parando serviço de impressão..." -ForegroundColor Yellow
+        Stop-Service Spooler -Force
+
+        Write-Host "🔪 Matando processos remanescentes..." -ForegroundColor Yellow
+        Get-Process spoolsv -ErrorAction SilentlyContinue | Stop-Process -Force
+
+        Write-Host "🗑️  Limpando arquivos de spool..." -ForegroundColor Yellow
+        Remove-Item -Path "$env:WINDIR\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
+
+        if($PrinterName){
+            Write-Host "❌ Removendo driver da impressora $PrinterName..." -ForegroundColor Yellow
+            Remove-Printer -Name $PrinterName -ErrorAction SilentlyContinue
+        }
+        Write-Host "▶️  Reiniciando serviço de impressão..." -ForegroundColor Yellow
+        Start-Service Spooler
+
+        Write-Host "✅ Spooler resetado." -ForegroundColor Green
+    } catch {
+        Write-Error "❌ Falha ao resetar spooler: $_"
+    }
+    Pause
+}
+
 #endregion
 
 #region Lógica Principal de Execução
@@ -384,6 +412,7 @@ do {
         "6" { Diagnostico-Rede }
         "7" { Reiniciar-WU }
         "8" { Agendar-Tarefa }
+        "9" { Limpar-FilaImpressao }
         default {
             Write-Log "`n❗ Opção inválida. Por favor, tente novamente." -ForegroundColor Red
             Start-Sleep -Seconds 2
