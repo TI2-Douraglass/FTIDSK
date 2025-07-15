@@ -74,6 +74,7 @@ function Mostrar-Menu {
     Write-Host
     Write-Host "--- OUTROS ---" -ForegroundColor Green
     Write-Host "[8] 📅 Agendar tarefa de limpeza diária"
+    Write-Host "[9] 🖨️ Limpar fila de impressão"
     Write-Host
     Write-Host "--- SAIR ---"
     Write-Host "[0] ❌ Sair"
@@ -376,6 +377,39 @@ function Limpar-FilaImpressao{
             Write-Host "❌ Removendo driver da impressora $PrinterName..." -ForegroundColor Yellow
             Remove-Printer -Name $PrinterName -ErrorAction SilentlyContinue
         }
+        Write-Host "▶️  Reiniciando serviço de impressão..." -ForegroundColor Yellow
+        Start-Service Spooler
+
+        Write-Host "✅ Spooler resetado." -ForegroundColor Green
+    } catch {
+        Write-Error "❌ Falha ao resetar spooler: $_"
+    }
+    Pause
+}
+
+function Limpar-FilaImpressao {
+    [CmdletBinding()]
+    param(
+        [string] $PrinterName  # opcional, se quiser focar em só uma impressora
+    )
+    try {
+        Write-Host "🖨️  Parando serviço de impressão..." -ForegroundColor Yellow
+        Stop-Service Spooler -Force
+
+        Write-Host "🔪 Matando processos remanescentes..." -ForegroundColor Yellow
+        Get-Process spoolsv -ErrorAction SilentlyContinue | Stop-Process -Force
+
+        Write-Host "🗑️  Limpando arquivos de spool..." -ForegroundColor Yellow
+        Remove-Item -Path "$env:WINDIR\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
+
+        if ($PrinterName) {
+            Write-Host "❌ Removendo driver da impressora $PrinterName..." -ForegroundColor Yellow
+            # Remove-Printer só existe no Windows 8+/Server 2012+
+            Remove-Printer -Name $PrinterName -ErrorAction SilentlyContinue
+            # (re)instalar driver pode ser feito aqui se você tiver o INF disponível:
+            # Add-Printer -Name $PrinterName -DriverName "NomeDoDriver" -PortName "PORTA"
+        }
+
         Write-Host "▶️  Reiniciando serviço de impressão..." -ForegroundColor Yellow
         Start-Service Spooler
 
