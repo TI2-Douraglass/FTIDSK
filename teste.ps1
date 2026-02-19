@@ -27,8 +27,9 @@ function Write-Log {
     )
     # Exibe a mensagem no console.
     Write-Host $Message -ForegroundColor $ForegroundColor
-    # (Opcional) Adiciona a mensagem a um arquivo de log.
-    # Add-Content -Path "Caminho\Para\Seu\Log.txt" -Value "$(Get-Date) - $Message"
+    # Adiciona a mensagem a um arquivo de log diário em %TEMP%.
+    $logFile = Join-Path $env:TEMP ("ManutencaoSistema_{0:yyyyMMdd}.log" -f (Get-Date))
+    Add-Content -Path $logFile -Value ("{0:yyyy-MM-dd HH:mm:ss} - {1}" -f (Get-Date), $Message)
 }
 
 #endregion
@@ -73,10 +74,11 @@ function Mostrar-Menu {
     Write-Host "[7] ♻️  Reiniciar componentes do Windows Update"
     Write-Host
     Write-Host "--- OUTROS ---" -ForegroundColor Green
-    Write-Host "[9] 📅 Agendar tarefa de limpeza diária"
+    Write-Host "[8] 📅 Agendar tarefa de limpeza diária"
+    Write-Host "[9] 🖨️  Limpar fila de impressão"
     Write-Host
     Write-Host "--- SAIR ---"
-    Write-Host "[8] ❌ Sair"
+    Write-Host "[0] ❌ Sair"
     Write-Host
 }
 
@@ -275,6 +277,36 @@ foreach (`$pasta in `$pastas) {
     }
 }
 
+function Limpar-FilaImpressao {
+    [CmdletBinding()]
+    param(
+        [string] $PrinterName
+    )
+    try {
+        Write-Host "🖨️  Parando serviço de impressão..." -ForegroundColor Yellow
+        Stop-Service Spooler -Force
+
+        Write-Host "🔪 Matando processos remanescentes..." -ForegroundColor Yellow
+        Get-Process spoolsv -ErrorAction SilentlyContinue | Stop-Process -Force
+
+        Write-Host "🗑️  Limpando arquivos de spool..." -ForegroundColor Yellow
+        Remove-Item -Path "$env:WINDIR\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
+
+        if ($PrinterName) {
+            Write-Host "❌ Removendo driver da impressora $PrinterName..." -ForegroundColor Yellow
+            Remove-Printer -Name $PrinterName -ErrorAction SilentlyContinue
+        }
+
+        Write-Host "▶️  Reiniciando serviço de impressão..." -ForegroundColor Yellow
+        Start-Service Spooler
+
+        Write-Host "✅ Spooler resetado." -ForegroundColor Green
+    } catch {
+        Write-Error "❌ Falha ao resetar spooler: $_"
+    }
+    Read-Host "`nPressione ENTER para voltar ao menu"
+}
+
 #endregion
 
 #region Lógica Principal de Execução
@@ -299,8 +331,9 @@ do {
         "5" { Verificar-SMART }
         "6" { Diagnostico-Rede }
         "7" { Reiniciar-WU }
-        "8" { exit }
-        "9" { Agendar-Tarefa }
+        "8" { Agendar-Tarefa }
+        "9" { Limpar-FilaImpressao }
+        "0" { exit }
         default {
             Write-Log "`n❗ Opção inválida. Por favor, tente novamente." -ForegroundColor Red
             Start-Sleep -Seconds 2

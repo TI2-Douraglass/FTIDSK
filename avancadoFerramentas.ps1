@@ -27,8 +27,9 @@ function Write-Log {
     )
     # Exibe a mensagem no console.
     Write-Host $Message -ForegroundColor $ForegroundColor
-    # (Opcional) Adiciona a mensagem a um arquivo de log.
-    # Add-Content -Path "Caminho\Para\Seu\Log.txt" -Value "$(Get-Date) - $Message"
+    # Adiciona a mensagem a um arquivo de log diário em %TEMP%.
+    $logFile = Join-Path $env:TEMP ("ManutencaoSistema_{0:yyyyMMdd}.log" -f (Get-Date))
+    Add-Content -Path $logFile -Value ("{0:yyyy-MM-dd HH:mm:ss} - {1}" -f (Get-Date), $Message)
 }
 
 #endregion
@@ -196,8 +197,11 @@ function Diagnostico-Rede-Debug {
     try {
         Write-Host "`n$MensagemProgresso" -ForegroundColor Yellow
         
-        # O comando Invoke-Expression executa uma string como se fosse um comando
-        Invoke-Expression -Command $Comando
+        # Divide o comando em executável e argumentos para evitar Invoke-Expression
+        $parts    = $Comando -split '\s+', 2
+        $exe      = $parts[0]
+        $cmdArgs  = if ($parts.Count -gt 1) { $parts[1] -split '\s+' } else { @() }
+        & $exe @cmdArgs
 
         Write-Host "`n✔️ $MensagemSucesso" -ForegroundColor Green
     }
@@ -357,34 +361,6 @@ foreach (`$pasta in `$pastas) {
             Agendar-Tarefa
         }
     }
-}
-
-function Limpar-FilaImpressao{
-    param(
-        [String] $PrinterName 
-    )
-    try{
-        Write-Host "🖨️  Parando serviço de impressão..." -ForegroundColor Yellow
-        Stop-Service Spooler -Force
-
-        Write-Host "🔪 Matando processos remanescentes..." -ForegroundColor Yellow
-        Get-Process spoolsv -ErrorAction SilentlyContinue | Stop-Process -Force
-
-        Write-Host "🗑️  Limpando arquivos de spool..." -ForegroundColor Yellow
-        Remove-Item -Path "$env:WINDIR\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
-
-        if($PrinterName){
-            Write-Host "❌ Removendo driver da impressora $PrinterName..." -ForegroundColor Yellow
-            Remove-Printer -Name $PrinterName -ErrorAction SilentlyContinue
-        }
-        Write-Host "▶️  Reiniciando serviço de impressão..." -ForegroundColor Yellow
-        Start-Service Spooler
-
-        Write-Host "✅ Spooler resetado." -ForegroundColor Green
-    } catch {
-        Write-Error "❌ Falha ao resetar spooler: $_"
-    }
-    Pause
 }
 
 function Limpar-FilaImpressao {

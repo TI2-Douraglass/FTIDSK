@@ -126,7 +126,7 @@ function Verificar-SMART {
     param()
     try {
         Write-Host "🧪 Verificando SMART dos discos..." -ForegroundColor Yellow
-        Get-WmiObject -Class Win32_DiskDrive | Select-Object Model, Status
+        Get-CimInstance -ClassName Win32_DiskDrive | Select-Object Model, Status
         Write-EventLog -LogName Application -Source $source -EntryType Information -EventId 5001 -Message "Verificação SMART concluída."
     } catch {
         Write-Error "❌ Erro no SMART: $_"
